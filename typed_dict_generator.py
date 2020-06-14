@@ -3,15 +3,12 @@ from typing import (
     Any,
     Union,
     List,
-    Optional,
     Set,
     Iterator,
     Iterable,
-    cast,
     Tuple,
     NewType,
 )
-from mypy_extensions import TypedDict
 import re
 import itertools
 from dataclasses import dataclass
@@ -24,8 +21,12 @@ from dataclasses import dataclass
 KeyPath = NewType("KeyPath", str)
 
 
-@dataclass
-class TypedDictPrinter:
+class Code:
+    pass
+
+
+@dataclass(eq=True, frozen=True)
+class TypedDictCode(Code):
     """When printed, returns the Python code to generate a TypedDict."""
 
     name: str
@@ -35,30 +36,62 @@ class TypedDictPrinter:
         pairs = (f'"{key}": {value}' for key, value in self.dict_.items())
         dict_str = "{ " + ", ".join(pairs) + " }"
 
-        # types of built-ins convert to str like this: <class 'classname'>
-        # this substitution extracts 'classname' from that
-        dict_str = re.sub(r"<class '(\w+)'>", lambda match: match.group(1), dict_str)
         dict_str = dict_str.replace("typing.", "")
 
         return f'TypedDict("{self.name.title()}", {dict_str})'
 
 
-def get_type(key: str, value: Any) -> Union[None, type, List[type], TypedDictPrinter]:
-    type_ = value.__class__
+@dataclass(eq=True, frozen=True)
+class BuiltInCode(Code):
+    type_: type
+
+    def __str__(self) -> str:
+        # types of built-ins convert to str like this: <class 'classname'>
+        # this substitution extracts 'classname' from that
+        return re.sub(r"<class '(\w+)'>", lambda match: match.group(1), str(self.type_))
+
+
+@dataclass(eq=True, frozen=True)
+class ListCode(Code):
+    inner_type: Code
+
+    def __str__(self) -> str:
+        return f"List[{self.inner_type}]"
+
+
+@dataclass(eq=True, frozen=True)
+class UnionCode(Code):
+    inner_types: List[Code]
+
+    def __str__(self) -> str:
+        n_types = len(self.inner_types)
+        if n_types == 0:
+            return "Any"
+        elif n_types == 1:
+            return str(self.inner_types[0])
+        else:
+            type_list = ", ".join(str(t) for t in self.inner_types)
+            return f"Union[{type_list}]"
+
+
+def get_type(
+    key: str, value: Union[None, List[Any], Dict[str, Any], str, int, float, bool]
+) -> Union[None, Code]:
     if value is None:
         # strictly speaking, None is of type NoneType
         # but the typing constructs accept None where NoneType should appear
+        # TODO: test this code path
         return None
-    if type_ in [str, int, float, bool]:
-        return type_
-    if type_ == list:
+    if isinstance(value, (str, int, float, bool)):
+        return BuiltInCode(type(value))
+    if isinstance(value, list):
         # typed_dicts = []
         other_types: Set = set()
 
         for element in value:
             element_type = get_type(key, element)
 
-            if isinstance(element_type, TypedDictPrinter):
+            if isinstance(element_type, TypedDictCode):
                 # typed_dicts.append(element_type)
                 raise NotImplementedError(
                     "Dictionaries nested in lists not yet supported"
@@ -74,11 +107,11 @@ def get_type(key: str, value: Any) -> Union[None, type, List[type], TypedDictPri
 
         # if there is only 1 type, the Union will collapse
         # into that one type
-        return List[Union[tuple(all_types)]]
-    if type_ == dict:
+        return ListCode(UnionCode(list(all_types)))
+    if isinstance(value, dict):
         assert key is not None
         types_of_keys = {key: get_type(key, val) for key, val in value.items()}
-        return TypedDictPrinter(key, types_of_keys)
+        return TypedDictCode(key, types_of_keys)
 
     raise ValueError("type not supported")
 
@@ -89,20 +122,20 @@ def generate_typed_dict_code(name: str, dictionary: Dict[str, Any]) -> str:
 
 def find_all_typed_dicts(
     name: str, dict_: Dict[str, Any]
-) -> Iterator[Tuple[KeyPath, TypedDictPrinter]]:
+) -> Iterator[Tuple[KeyPath, TypedDictCode]]:
     toplevel_dict = get_type(name, dict_)
-    assert isinstance(toplevel_dict, TypedDictPrinter)
+    assert isinstance(toplevel_dict, TypedDictCode)
     yield from _find_all_typed_dicts(KeyPath(name), toplevel_dict)
 
 
 def _find_all_typed_dicts(
     path: KeyPath, value: Any
-) -> Iterator[Tuple[KeyPath, TypedDictPrinter]]:
+) -> Iterator[Tuple[KeyPath, TypedDictCode]]:
     """Recursive helper fn for a depth-first search through the typed dictionary"""
     if isinstance(value, str):
         return
 
-    if isinstance(value, TypedDictPrinter):
+    if isinstance(value, TypedDictCode):
         yield path, value
         for key, val in value.dict_.items():
             yield from _find_all_typed_dicts(KeyPath(f"{path}.{key}"), val)
@@ -126,7 +159,7 @@ def _find_all_typed_dicts(
 
 def accumulate_typed_dicts(
     name: str, dict_: Dict
-) -> Dict[KeyPath, List[TypedDictPrinter]]:
+) -> Dict[KeyPath, List[TypedDictCode]]:
     accumulated_dicts: Dict = {}
     for path, typed_dict in find_all_typed_dicts(KeyPath(name), dict_):
         accumulated_dicts.setdefault(path, []).append(typed_dict)
@@ -143,8 +176,8 @@ some_dict = {
     # "heterogenous_list": ["string", 1.0, {"quux": "fox"}],
 }
 
-for val in find_all_typed_dicts("Foo", some_dict):
-    print(val)
+for path, typed_dict in find_all_typed_dicts("Foo", some_dict):
+    print(path, typed_dict)
 
 print("\naccumulated:")
 print(accumulate_typed_dicts("Foo", some_dict))
