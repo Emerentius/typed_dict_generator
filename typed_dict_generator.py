@@ -1,6 +1,19 @@
-from typing import Dict, Any, Union, List, Optional
+from typing import (
+    Dict,
+    Any,
+    Union,
+    List,
+    Optional,
+    Set,
+    Iterator,
+    Iterable,
+    cast,
+    Tuple,
+    NewType,
+)
 from mypy_extensions import TypedDict
 import re
+import itertools
 from dataclasses import dataclass
 
 
@@ -32,8 +45,25 @@ def get_type(key: str, value: Any) -> Union[None, type, List[type], TypedDictPri
     if type_ in [str, int, float, bool]:
         return type_
     if type_ == list:
-        all_types = {get_type(key, val) for val in value}
-        all_types = all_types or {Any}
+        # typed_dicts = []
+        other_types: Set = set()
+
+        for element in value:
+            element_type = get_type(key, element)
+
+            if isinstance(element_type, TypedDictPrinter):
+                # typed_dicts.append(element_type)
+                raise NotImplementedError(
+                    "Dictionaries nested in lists not yet supported"
+                )
+            else:
+                other_types.add(element_type)
+
+        all_types: Iterable
+        if other_types:  # or typed_dicts:
+            all_types = other_types  # itertools.chain(other_types, typed_dicts)
+        else:
+            all_types = [Any]
 
         # if there is only 1 type, the Union will collapse
         # into that one type
