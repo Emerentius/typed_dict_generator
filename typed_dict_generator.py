@@ -44,9 +44,12 @@ class TypedDictCode(Code):
         return f'TypedDict("{self.name.title()}", {dict_str})'
 
 
+NoneType = type(None)
+
+
 @dataclass(eq=True, frozen=True)
 class BuiltInCode(Code):
-    type_: type
+    type_: Union[int, float, str, bool, NoneType]
 
     def __str__(self) -> str:
         # types of built-ins convert to str like this: <class 'classname'>
@@ -81,7 +84,7 @@ def get_type(
     key: str, value: Union[None, List[Any], Dict[str, Any], str, int, float, bool]
 ) -> Code:
     if isinstance(value, (type(None), str, int, float, bool)):
-        return BuiltInCode(type(value))
+        return BuiltInCode(type(value))  # type: ignore
     if isinstance(value, list):
         all_types = {get_type(key, element) for element in value}
 
@@ -109,32 +112,25 @@ def find_all_typed_dicts(
 
 
 def _find_all_typed_dicts(
-    path: KeyPath, value: Any
+    path: KeyPath, code: Code
 ) -> Iterator[Tuple[KeyPath, TypedDictCode]]:
     """Recursive helper fn for a depth-first search through the typed dictionary"""
-    if isinstance(value, str):
+    if isinstance(code, BuiltInCode):
         return
 
-    if isinstance(value, TypedDictCode):
-        yield path, value
-        for key, val in value.dict_:
+    if isinstance(code, TypedDictCode):
+        yield path, code
+        for key, val in code.dict_:
             yield from _find_all_typed_dicts(KeyPath(f"{path}.{key}"), val)
         return
 
-    try:
-        origin = value.__origin__
-    except AttributeError:
-        return
-
-    if origin == list:
-        it = _find_all_typed_dicts(path, value.__args__)
-    elif origin == Union:
-        it = iter(value.__args__)
+    if isinstance(code, ListCode):
+        yield from _find_all_typed_dicts(path, code.inner_type)
+    elif isinstance(code, UnionCode):
+        for type_ in code.inner_types:
+            yield from _find_all_typed_dicts(path, type_)
     else:
-        raise Exception(f"Unsupported type: {value}")
-
-    for val in it:
-        yield from _find_all_typed_dicts(path, val)
+        raise Exception(f"Unsupported type: {code}")
 
 
 def accumulate_typed_dicts(
