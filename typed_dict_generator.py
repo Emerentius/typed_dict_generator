@@ -30,10 +30,13 @@ class TypedDictCode(Code):
     """When printed, returns the Python code to generate a TypedDict."""
 
     name: str
-    dict_: Dict[str, Any]
+    # Represent the dictionary as tuples so that it can be hashed.
+    # It would be nice if the constructor could convert the dictionary
+    # but I haven't figured out how to do that with dataclass(frozen=True)
+    dict_: Tuple[Tuple[str, Any], ...]
 
     def __str__(self) -> str:
-        pairs = (f'"{key}": {value}' for key, value in self.dict_.items())
+        pairs = (f'"{key}": {value}' for key, value in self.dict_)
         dict_str = "{ " + ", ".join(pairs) + " }"
 
         dict_str = dict_str.replace("typing.", "")
@@ -76,34 +79,11 @@ class UnionCode(Code):
 
 def get_type(
     key: str, value: Union[None, List[Any], Dict[str, Any], str, int, float, bool]
-) -> Union[None, Code]:
-    if value is None:
-        # strictly speaking, None is of type NoneType
-        # but the typing constructs accept None where NoneType should appear
-        # TODO: test this code path
-        return None
-    if isinstance(value, (str, int, float, bool)):
+) -> Code:
+    if isinstance(value, (type(None), str, int, float, bool)):
         return BuiltInCode(type(value))
     if isinstance(value, list):
-        # typed_dicts = []
-        other_types: Set = set()
-
-        for element in value:
-            element_type = get_type(key, element)
-
-            if isinstance(element_type, TypedDictCode):
-                # typed_dicts.append(element_type)
-                raise NotImplementedError(
-                    "Dictionaries nested in lists not yet supported"
-                )
-            else:
-                other_types.add(element_type)
-
-        all_types: Iterable
-        if other_types:  # or typed_dicts:
-            all_types = other_types  # itertools.chain(other_types, typed_dicts)
-        else:
-            all_types = [Any]
+        all_types = {get_type(key, element) for element in value}
 
         # if there is only 1 type, the Union will collapse
         # into that one type
@@ -111,7 +91,7 @@ def get_type(
     if isinstance(value, dict):
         assert key is not None
         types_of_keys = {key: get_type(key, val) for key, val in value.items()}
-        return TypedDictCode(key, types_of_keys)
+        return TypedDictCode(key, tuple(types_of_keys.items()))
 
     raise ValueError("type not supported")
 
@@ -137,7 +117,7 @@ def _find_all_typed_dicts(
 
     if isinstance(value, TypedDictCode):
         yield path, value
-        for key, val in value.dict_.items():
+        for key, val in value.dict_:
             yield from _find_all_typed_dicts(KeyPath(f"{path}.{key}"), val)
         return
 
@@ -172,8 +152,8 @@ some_dict = {
     "floaty": 1.0,
     "dict": {"some_key": "blub"},
     "some_list": ["foo", "bar"],
-    "heterogenous_list": ["string", 1.0],
-    # "heterogenous_list": ["string", 1.0, {"quux": "fox"}],
+    "null": None,
+    "heterogenous_list": ["string", 1.0, {"quux": "fox"}],
 }
 
 for path, typed_dict in find_all_typed_dicts("Foo", some_dict):
