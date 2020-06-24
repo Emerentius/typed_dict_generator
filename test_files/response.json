@@ -1,0 +1,13 @@
+{
+    "name": "foo",
+    "cond": true,
+    "floaty": 1.0,
+    "dict": {
+        "some_key": "blub"
+    },
+    "some_list": ["foo", "bar"],
+    "null": null,
+    "heterogenous_list": ["string", 1.0, {
+        "quux": "fox"
+    }]
+}

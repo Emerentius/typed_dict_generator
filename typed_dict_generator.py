@@ -54,7 +54,10 @@ class BuiltInCode(Code):
     def __str__(self) -> str:
         # types of built-ins convert to str like this: <class 'classname'>
         # this substitution extracts 'classname' from that
-        return re.sub(r"<class '(\w+)'>", lambda match: match.group(1), str(self.type_))
+        class_ = re.sub(
+            r"<class '(\w+)'>", lambda match: match.group(1), str(self.type_)
+        )
+        return class_ if class_ != "NoneType" else "None"
 
 
 @dataclass(eq=True, frozen=True)
