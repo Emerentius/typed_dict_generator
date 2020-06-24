@@ -142,18 +142,32 @@ def accumulate_typed_dicts(
     return accumulated_dicts
 
 
-some_dict = {
-    "name": "foo",
-    "cond": True,
-    "floaty": 1.0,
-    "dict": {"some_key": "blub"},
-    "some_list": ["foo", "bar"],
-    "null": None,
-    "heterogenous_list": ["string", 1.0, {"quux": "fox"}],
-}
+# ============================================================================
+import click
+import json
+import os
 
-for path, typed_dict in find_all_typed_dicts("Foo", some_dict):
-    print(path, typed_dict)
 
-print("\naccumulated:")
-print(accumulate_typed_dicts("Foo", some_dict))
+@click.command()
+@click.argument(
+    "file", type=click.Path(exists=True, dir_okay=False, readable=True, allow_dash=True)
+)
+def cli(file: str):
+    try:
+        with click.open_file(file) as f:
+            data = json.load(f)
+    except Exception as e:
+        click.echo(f"Input must be a valid json file. Error: {e}")
+        return
+    filename = os.path.basename(file)
+    filename, _ = os.path.splitext(filename)
+
+    if isinstance(data, dict):
+        code = generate_typed_dict_code(filename.title(), data)
+        click.echo(code)
+    else:
+        click.echo("Json does not represent a dictionary")
+
+
+if __name__ == "__main__":
+    cli()  # pylint: disable=no-value-for-parameter

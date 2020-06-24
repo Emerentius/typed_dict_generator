@@ -1,1 +1,9 @@
-.mypy_cache
+.mypy_cache/
+.vscode/
+*.pyc
+.pytest_cache
+.cache
+__pycache__
+.venv*
+sync.ffs_db
+*.egg-info
