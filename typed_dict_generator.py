@@ -83,6 +83,20 @@ class UnionCode(Code):
             return f"Union[{type_list}]"
 
 
+def type_order_key(type_) -> int:
+    if isinstance(type_, BuiltInCode):
+        order = [int, float, str, bool, NoneType]
+        return order.index(type_.type_)
+    elif isinstance(type_, UnionCode):
+        return 100
+    elif isinstance(type_, ListCode):
+        return 200
+    elif isinstance(type_, TypedDictCode):
+        return 300
+    else:
+        raise Exception(f"Unsupported type: {type_}")
+
+
 def get_type(
     key: str, value: Union[None, List[Any], Dict[str, Any], str, int, float, bool]
 ) -> Code:
@@ -90,10 +104,11 @@ def get_type(
         return BuiltInCode(type(value))  # type: ignore
     if isinstance(value, list):
         all_types = {get_type(key, element) for element in value}
+        ordered_types = sorted(all_types, key=type_order_key)
 
         # if there is only 1 type, the Union will collapse
         # into that one type
-        return ListCode(UnionCode(list(all_types)))
+        return ListCode(UnionCode(ordered_types))
     if isinstance(value, dict):
         assert key is not None
         types_of_keys = {key: get_type(key, val) for key, val in value.items()}
