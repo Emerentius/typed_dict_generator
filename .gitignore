@@ -7,3 +7,4 @@ __pycache__
 .venv*
 sync.ffs_db
 *.egg-info
+build
