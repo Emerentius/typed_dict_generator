@@ -6,12 +6,12 @@ authors = ["Emerentius <emerentius@arcor.de>"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-click = "^7.1.2"
+click = "^8.0.1"
 
 [tool.poetry.dev-dependencies]
-mypy = "^0.782"
-pylint = "^2.5.3"
 pytest = "^5.4.3"
+mypy = "^0.902"
+pylint = "^2.8.3"
 
 [build-system]
 requires = ["poetry>=0.12"]
