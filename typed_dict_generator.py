@@ -1,16 +1,12 @@
+from __future__ import annotations
 from typing import (
-    Dict,
     Any,
-    Union,
-    List,
-    Set,
+    Optional,
     Iterator,
-    Iterable,
     Tuple,
     NewType,
 )
 import re
-import itertools
 from dataclasses import dataclass
 
 # The KeyPath is the sequence of key accesses required to get to a certain
@@ -49,7 +45,7 @@ NoneType = type(None)
 
 @dataclass(eq=True, frozen=True)
 class BuiltInCode(Code):
-    type_: Union[int, float, str, bool, NoneType]
+    type_: int | float | str | bool | NoneType
 
     def __str__(self) -> str:
         # types of built-ins convert to str like this: <class 'classname'>
@@ -70,7 +66,7 @@ class ListCode(Code):
 
 @dataclass(eq=True, frozen=True)
 class UnionCode(Code):
-    inner_types: List[Code]
+    inner_types: list[Code]
 
     def __str__(self) -> str:
         n_types = len(self.inner_types)
@@ -98,7 +94,7 @@ def type_order_key(type_) -> int:
 
 
 def get_type(
-    key: str, value: Union[None, List[Any], Dict[str, Any], str, int, float, bool]
+    key: str, value: Optional[list[Any] | dict[str, Any] | str | int | float | bool]
 ) -> Code:
     if isinstance(value, (type(None), str, int, float, bool)):
         return BuiltInCode(type(value))  # type: ignore
@@ -117,12 +113,12 @@ def get_type(
     raise ValueError("type not supported")
 
 
-def generate_typed_dict_code(name: str, dictionary: Dict[str, Any]) -> str:
+def generate_typed_dict_code(name: str, dictionary: dict[str, Any]) -> str:
     return str(get_type(name, dictionary))
 
 
 def find_all_typed_dicts(
-    name: str, dict_: Dict[str, Any]
+    name: str, dict_: dict[str, Any]
 ) -> Iterator[Tuple[KeyPath, TypedDictCode]]:
     toplevel_dict = get_type(name, dict_)
     assert isinstance(toplevel_dict, TypedDictCode)
@@ -152,9 +148,9 @@ def _find_all_typed_dicts(
 
 
 def accumulate_typed_dicts(
-    name: str, dict_: Dict
-) -> Dict[KeyPath, List[TypedDictCode]]:
-    accumulated_dicts: Dict = {}
+    name: str, dict_: dict
+) -> dict[KeyPath, list[TypedDictCode]]:
+    accumulated_dicts: dict = {}
     for path, typed_dict in find_all_typed_dicts(KeyPath(name), dict_):
         accumulated_dicts.setdefault(path, []).append(typed_dict)
     return accumulated_dicts
