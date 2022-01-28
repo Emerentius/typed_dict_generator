@@ -21,7 +21,7 @@ from dataclasses import dataclass
 # examples can be unified.
 KeyPath = NewType("KeyPath", str)
 
-TypeAssignments = Dict[int, Optional[str]]
+TypeAssignments = Dict["Code", Optional[str]]
 JsonValue = Optional["list[Any] | dict[str, Any] | str | int | float | bool"]
 
 
@@ -45,7 +45,7 @@ class TypedDictCode(Code):
     dict_: Tuple[Tuple[str, Code], ...]
 
     def to_str(self, assignments: TypeAssignments) -> str:
-        assignment = assignments.get(id(self))
+        assignment = assignments.get(self)
         if assignment is not None:
             return assignment
 
@@ -162,7 +162,7 @@ def find_unused_name(name: str, taken_names: Set[str]) -> str:
 
 def generate_typed_dict_code(name: str, dictionary: dict[str, Any]) -> str:
     types = get_types(name, dictionary)
-    type_assignments: TypeAssignments = {id(ty): None for ty in types}
+    type_assignments: TypeAssignments = {ty: None for ty in types}
 
     # typed dicts can't be nested, so we generate assignments for them
     # and then refer to TypedDicts nested inside other types by their variable name.
@@ -198,13 +198,17 @@ def generate_typed_dict_code(name: str, dictionary: dict[str, Any]) -> str:
 
     output = ""
     for ty in types:
+        # Eliminate duplicate types.
+        # These come up a lot in real data.
+        if type_assignments[ty] is not None:
+            continue
         if isinstance(ty, TypedDictCode):
             name = find_unused_name(camel_case(ty.name), taken_names)
             taken_names.add(name)
             renamed_type = TypedDictCode(name, ty.dict_)
             output += f"{name} = {renamed_type.to_str(type_assignments)}\n"
 
-            type_assignments[id(ty)] = name
+            type_assignments[ty] = name
 
     return output
 
