@@ -5,6 +5,7 @@ from typing import (
     Iterator,
     Tuple,
     NewType,
+    Protocol,
 )
 import re
 from dataclasses import dataclass
@@ -17,8 +18,9 @@ from dataclasses import dataclass
 KeyPath = NewType("KeyPath", str)
 
 
-class Code:
-    pass
+class Code(Protocol):
+    def to_str(self) -> str:
+        pass
 
 
 @dataclass(eq=True, frozen=True)
@@ -29,10 +31,10 @@ class TypedDictCode(Code):
     # Represent the dictionary as tuples so that it can be hashed.
     # It would be nice if the constructor could convert the dictionary
     # but I haven't figured out how to do that with dataclass(frozen=True)
-    dict_: Tuple[Tuple[str, Any], ...]
+    dict_: Tuple[Tuple[str, Code], ...]
 
-    def __str__(self) -> str:
-        pairs = (f'"{key}": {value}' for key, value in self.dict_)
+    def to_str(self) -> str:
+        pairs = (f'"{key}": {value.to_str()}' for key, value in self.dict_)
         dict_str = "{ " + ", ".join(pairs) + " }"
 
         dict_str = dict_str.replace("typing.", "")
@@ -47,7 +49,7 @@ NoneType = type(None)
 class BuiltInCode(Code):
     type_: int | float | str | bool | NoneType
 
-    def __str__(self) -> str:
+    def to_str(self) -> str:
         # types of built-ins convert to str like this: <class 'classname'>
         # this substitution extracts 'classname' from that
         class_ = re.sub(
@@ -60,22 +62,22 @@ class BuiltInCode(Code):
 class ListCode(Code):
     inner_type: Code
 
-    def __str__(self) -> str:
-        return f"List[{self.inner_type}]"
+    def to_str(self) -> str:
+        return f"List[{self.inner_type.to_str()}]"
 
 
 @dataclass(eq=True, frozen=True)
 class UnionCode(Code):
     inner_types: list[Code]
 
-    def __str__(self) -> str:
+    def to_str(self) -> str:
         n_types = len(self.inner_types)
         if n_types == 0:
             return "Any"
         elif n_types == 1:
-            return str(self.inner_types[0])
+            return self.inner_types[0].to_str()
         else:
-            type_list = ", ".join(str(t) for t in self.inner_types)
+            type_list = ", ".join(t.to_str() for t in self.inner_types)
             return f"Union[{type_list}]"
 
 
@@ -114,7 +116,7 @@ def get_type(
 
 
 def generate_typed_dict_code(name: str, dictionary: dict[str, Any]) -> str:
-    return str(get_type(name, dictionary))
+    return get_type(name, dictionary).to_str()
 
 
 def find_all_typed_dicts(
