@@ -200,6 +200,7 @@ def generate_typed_dict_code(name: str, dictionary: dict[str, Any]) -> str:
     for ty in types:
         if isinstance(ty, TypedDictCode):
             name = find_unused_name(camel_case(ty.name), taken_names)
+            taken_names.add(name)
             renamed_type = TypedDictCode(name, ty.dict_)
             output += f"{name} = {renamed_type.to_str(type_assignments)}\n"
 
