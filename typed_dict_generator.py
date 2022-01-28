@@ -30,8 +30,11 @@ class Code(Protocol):
         pass
 
 
+PATTERN = re.compile("(^|_)([a-zA-Z])")
+
+
 def camel_case(name: str) -> str:
-    return name.title().replace("_", "")
+    return PATTERN.sub(lambda m: m.group(2).upper(), name)
 
 
 @dataclass(eq=True, frozen=True)
