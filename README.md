@@ -5,7 +5,7 @@ This script generates Python code for [TypedDicts](https://docs.python.org/3/lib
 ## Usage
 ```bash
 $ poetry run python typed_dict_generator.py test_files/response.json 
-Dict2 = TypedDict("Dict", { "some_key": str })
+Dict2 = TypedDict("Dict2", { "some_key": str })
 HeterogenousList = TypedDict("HeterogenousList", { "quux": str })
 Response = TypedDict("Response", { "name": str, "cond": bool, "floaty": float, "dict": Dict2, "some_list": List[str], "null": None, "heterogenous_list": List[Union[float, str, HeterogenousList]] })
 ```
