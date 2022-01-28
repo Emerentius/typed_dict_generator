@@ -54,7 +54,7 @@ class TypedDictCode(Code):
 
         dict_str = dict_str.replace("typing.", "")
 
-        return f'TypedDict("{camel_case(self.name)}", {dict_str})'
+        return f'TypedDict("{self.name}", {dict_str})'
 
 
 NoneType = type(None)
