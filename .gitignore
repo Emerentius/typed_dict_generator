@@ -8,3 +8,4 @@ __pycache__
 sync.ffs_db
 *.egg-info
 build
+dist
